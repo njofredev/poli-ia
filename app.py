@@ -1,15 +1,18 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify
+from flasgger import Swagger
 import openai
 import json
 import re
 
 app = Flask(__name__)
+swagger = Swagger(app)
 
 # Configurar OpenRouter
 openai.api_base = "https://openrouter.ai/api/v1"
 openai.api_key = "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"
 
 system_prompt = """
+
 Eres un asistente médico virtual del Policlínico Tabancura. Tu función es derivar a los pacientes según los síntomas o problemas que describen. Las áreas disponibles para derivación son:
 
 Salud Mental: ansiedad, depresión, estrés, insomnio, crisis emocionales, etc.
@@ -40,11 +43,45 @@ Sucursal Los Tribunales - Calle Los Tribunales 1268, Comuna de Vitacura
 Teléfono fijo: +562 2217 2635
 WhatsApp: +569 6618 7736
 Correo: secretaria@policlinicotabancura.cl
-Página web: https://www.policlinicotabancura.cl
-"""
+Página web: https://www.policlinicotabancura.cl"""  # Aquí pega tu prompt completo
 
 @app.route("/consultar", methods=["POST"])
 def consultar():
+    """
+    Consultar área médica según malestar del paciente
+    ---
+    tags:
+      - Asistente Médico Virtual
+    parameters:
+      - in: body
+        name: body
+        schema:
+          type: object
+          required:
+            - malestar
+          properties:
+            malestar:
+              type: string
+              example: "me duele la cabeza"
+              description: Descripción libre del malestar del paciente
+    responses:
+      200:
+        description: Respuesta con la derivación médica sugerida
+        schema:
+          type: object
+          properties:
+            area:
+              type: string
+              example: "Medicina General"
+            recomendacion:
+              type: string
+              example: "¡Gracias por consultar! Podrías revisar con Medicina General. 😊"
+            accion:
+              type: string
+              example: "mostrar_agenda_medica"
+      500:
+        description: Error al interpretar la respuesta
+    """
     data = request.json
     malestar = data.get("malestar", "")
 
@@ -61,14 +98,18 @@ def consultar():
         json_text = re.search(r"\{.*\}", content, re.DOTALL).group(0)
         respuesta = json.loads(json_text)
 
-        return Response(json.dumps(respuesta, ensure_ascii=False), mimetype="application/json")
+        return jsonify(respuesta)
 
     except Exception as e:
-        return jsonify({"error": "Error al interpretar la respuesta", "detalle": str(e), "contenido": content}), 500
+        return jsonify({
+            "error": "Error al interpretar la respuesta",
+            "detalle": str(e),
+            "contenido": content
+        }), 500
 
 @app.route("/", methods=["GET"])
 def home():
-    return "✅ Backend Flask activo para el Asistente del Policlínico Tabancura"
+    return "✅ Backend Flask activo con documentación Swagger en /apidocs"
 
 if __name__ == "__main__":
     app.run(debug=True)
